@@ -29,6 +29,7 @@ import {
   Play,
   Square,
   Gauge,
+  Zap,
   HelpCircle as QuestionIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -80,8 +81,11 @@ export default function App() {
   // Auto play states
   const [autoPlayCount, setAutoPlayCount] = useState<number>(0);
   const [autoPlayPhase, setAutoPlayPhase] = useState<'IDLE' | 'DEALT_WAIT_HOLD' | 'HOLD_WAIT_DRAW'>('IDLE');
-  const [isFastAutoPlay, setIsFastAutoPlay] = useState<boolean>(() => {
-    return localStorage.getItem('vp_fast_autoplay') === 'true';
+  const [autoPlaySpeed, setAutoPlaySpeed] = useState<'1X' | '2X' | 'TURBO'>(() => {
+    const saved = localStorage.getItem('vp_autoplay_speed');
+    if (saved === '1X' || saved === '2X' || saved === 'TURBO') return saved as '1X' | '2X' | 'TURBO';
+    const legacy = localStorage.getItem('vp_fast_autoplay');
+    return legacy === 'true' ? '2X' : '1X';
   });
   
   // Real-time analysis states
@@ -139,15 +143,20 @@ export default function App() {
   }, [history]);
 
   useEffect(() => {
-    localStorage.setItem('vp_fast_autoplay', isFastAutoPlay ? 'true' : 'false');
-  }, [isFastAutoPlay]);
+    localStorage.setItem('vp_autoplay_speed', autoPlaySpeed);
+  }, [autoPlaySpeed]);
 
   // Auto-play state machine engine
   useEffect(() => {
     if (autoPlayCount <= 0) return;
 
     let timerId: NodeJS.Timeout;
-    const delay = isFastAutoPlay ? 500 : 1000;
+    let delay = 1000;
+    if (autoPlaySpeed === '2X') {
+      delay = 500;
+    } else if (autoPlaySpeed === 'TURBO') {
+      delay = 50;
+    }
 
     if (gameState === 'IDLE' || gameState === 'GAMEOVER') {
       timerId = setTimeout(() => {
@@ -173,7 +182,7 @@ export default function App() {
       clearTimeout(timerId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPlayCount, gameState, autoPlayPhase, isFastAutoPlay]);
+  }, [autoPlayCount, gameState, autoPlayPhase, autoPlaySpeed]);
 
   // Current hand's real-time rank during DEALT state
   const currentDealtRank = useMemo(() => {
@@ -827,40 +836,90 @@ export default function App() {
                     <span>Stop ({autoPlayCount})</span>
                   </button>
                 ) : (
-                  <button
-                    id="btn-autoplay-10"
-                    onClick={() => {
-                      sounds.playButton();
-                      setAutoPlayCount(10);
-                      if (gameState === 'DEALT') {
-                        setAutoPlayPhase('DEALT_WAIT_HOLD');
-                      } else {
-                        setAutoPlayPhase('IDLE');
-                      }
-                    }}
-                    className="px-4 py-3.5 bg-gradient-to-tr from-indigo-600 to-purple-600 text-slate-100 font-sans font-bold text-sm tracking-widest uppercase rounded-xl hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-950/50 transition-all transform active:scale-95 flex items-center gap-1.5"
-                  >
-                    <Play className="w-4 h-4 text-amber-300" />
-                    <span>Auto 10</span>
-                  </button>
+                  <>
+                    <button
+                      id="btn-autoplay-10"
+                      onClick={() => {
+                        sounds.playButton();
+                        setAutoPlayCount(10);
+                        if (gameState === 'DEALT') {
+                          setAutoPlayPhase('DEALT_WAIT_HOLD');
+                        } else {
+                          setAutoPlayPhase('IDLE');
+                        }
+                      }}
+                      className="px-3.5 py-3.5 bg-gradient-to-tr from-indigo-600 to-purple-600 text-slate-100 font-sans font-bold text-xs sm:text-sm tracking-widest uppercase rounded-xl hover:from-indigo-500 hover:to-purple-500 shadow-lg shadow-indigo-950/50 transition-all transform active:scale-95 flex items-center gap-1"
+                    >
+                      <Play className="w-3 h-3 sm:w-4 sm:h-4 text-amber-300" />
+                      <span>Auto 10</span>
+                    </button>
+                    <button
+                      id="btn-autoplay-100"
+                      onClick={() => {
+                        sounds.playButton();
+                        setAutoPlayCount(100);
+                        if (gameState === 'DEALT') {
+                          setAutoPlayPhase('DEALT_WAIT_HOLD');
+                        } else {
+                          setAutoPlayPhase('IDLE');
+                        }
+                      }}
+                      className="px-3.5 py-3.5 bg-gradient-to-tr from-purple-600 to-fuchsia-600 text-slate-100 font-sans font-bold text-xs sm:text-sm tracking-widest uppercase rounded-xl hover:from-purple-500 hover:to-fuchsia-500 shadow-lg shadow-purple-950/50 transition-all transform active:scale-95 flex items-center gap-1"
+                    >
+                      <Play className="w-3 h-3 sm:w-4 sm:h-4 text-amber-300 animate-pulse" />
+                      <span>Auto 100</span>
+                    </button>
+                  </>
                 )}
 
-                <button
-                  id="btn-autoplay-speed"
-                  onClick={() => {
-                    sounds.playButton();
-                    setIsFastAutoPlay((prev) => !prev);
-                  }}
-                  className={`px-3 py-3.5 font-mono text-xs font-bold uppercase rounded-xl border transition-all flex items-center gap-1.5 ${
-                    isFastAutoPlay
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shadow-md shadow-amber-950/30'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-850'
-                  }`}
-                  title={isFastAutoPlay ? 'Auto-play Speed: 2x (Double Speed)' : 'Auto-play Speed: 1x (Normal Speed)'}
-                >
-                  <Gauge className={`w-4 h-4 ${isFastAutoPlay ? 'text-amber-400 animate-pulse' : 'text-slate-500'}`} />
-                  <span>{isFastAutoPlay ? '2x' : '1x'}</span>
-                </button>
+                <div className="flex items-center bg-slate-950/60 p-1 border border-slate-800 rounded-xl gap-1 h-[48px]">
+                  <button
+                    id="btn-speed-1x"
+                    onClick={() => {
+                      sounds.playButton();
+                      setAutoPlaySpeed('1X');
+                    }}
+                    className={`px-2 py-1.5 font-mono text-[10px] sm:text-xs font-bold uppercase rounded-lg transition-all h-full flex items-center ${
+                      autoPlaySpeed === '1X'
+                        ? 'bg-slate-800 text-slate-200 border border-slate-700/50 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-400'
+                    }`}
+                    title="Normal Speed (1x)"
+                  >
+                    1x
+                  </button>
+                  <button
+                    id="btn-speed-2x"
+                    onClick={() => {
+                      sounds.playButton();
+                      setAutoPlaySpeed('2X');
+                    }}
+                    className={`px-2 py-1.5 font-mono text-[10px] sm:text-xs font-bold uppercase rounded-lg transition-all h-full flex items-center ${
+                      autoPlaySpeed === '2X'
+                        ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-400'
+                    }`}
+                    title="Double Speed (2x)"
+                  >
+                    2x
+                  </button>
+                  <button
+                    id="btn-speed-turbo"
+                    onClick={() => {
+                      sounds.playButton();
+                      setAutoPlaySpeed('TURBO');
+                    }}
+                    className={`px-2 py-1.5 font-mono text-[10px] sm:text-xs font-bold uppercase rounded-lg transition-all h-full flex items-center gap-1 ${
+                      autoPlaySpeed === 'TURBO'
+                        ? 'bg-rose-500/15 border border-rose-500/30 text-rose-400 font-black shadow-sm'
+                        : 'text-slate-500 hover:text-slate-400'
+                    }`}
+                    title="Turbo Speed (Plays Very Fast)"
+                  >
+                    <Zap className={`w-3 h-3 ${autoPlaySpeed === 'TURBO' ? 'text-rose-400 fill-rose-400/50 animate-bounce' : 'text-slate-500'}`} />
+                    <span>Turbo</span>
+                  </button>
+                </div>
               </div>
 
               <div className="h-8 w-[1px] bg-slate-800 hidden sm:block" />
